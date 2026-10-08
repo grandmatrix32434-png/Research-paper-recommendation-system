@@ -8,11 +8,12 @@ interface HeroLandingProps {
 }
 
 const QUICK_TOPICS = [
-  'machine learning for medical diagnosis',
-  'quantum error correction surface codes',
-  'neural speech decoders intracortical',
-  'de novo macromolecular diffusion',
-  'federated continual clinical learning',
+  'Artificial Intelligence',
+  'Mental Health',
+  'Digital Payments',
+  'Climate Change',
+  'Online Education',
+  'Cybersecurity',
 ];
 
 export const HeroLanding: React.FC<HeroLandingProps> = ({ onSearch, isLoading }) => {

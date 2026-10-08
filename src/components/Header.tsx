@@ -60,19 +60,13 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onSelectTab, savedCou
           </span>
         </div>
 
-        {/* Zone 3: Primary Action (Right) */}
+        {/* Zone 3: Right Secondary Metadata (Library button removed as redundant with Saved Papers) */}
         <div className="flex items-center gap-4">
           <button
             onClick={() => onSelectTab('discover')}
-            className="text-xs md:text-sm font-medium tracking-tight text-[#122b1e] hover:text-[#dc5b34] transition-colors cursor-pointer hidden md:inline-block"
+            className="text-xs md:text-sm font-medium tracking-tight text-[#122b1e]/70 hover:text-[#122b1e] transition-colors cursor-pointer hidden md:inline-block font-editorial-mono"
           >
             OpenAlex Index
-          </button>
-          <button
-            onClick={() => onSelectTab('saved')}
-            className="px-3.5 py-1.5 text-xs font-semibold tracking-tight text-white bg-[#122b1e] rounded-sm hover:bg-[#1a3d2e] transition-colors cursor-pointer whitespace-nowrap"
-          >
-            Library {savedCount > 0 ? `(${savedCount})` : ''}
           </button>
         </div>
 

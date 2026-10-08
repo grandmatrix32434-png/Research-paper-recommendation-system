@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Paper, RecommendationMode, SortOption } from '../types/paper';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Paper, RecommendationMode } from '../types/paper';
 
 interface RecommendationResultsProps {
   query: string;
@@ -9,9 +9,19 @@ interface RecommendationResultsProps {
   savedPaperIds: string[];
   onToggleSave: (paper: Paper) => void;
   onNewSearch: (query: string) => void;
-  recommendationMode: RecommendationMode;
-  onChangeMode: (mode: RecommendationMode) => void;
+  recommendationMode?: RecommendationMode;
+  onChangeMode?: (mode: RecommendationMode) => void;
 }
+
+export const RESEARCH_DOMAINS = [
+  'All Disciplines',
+  'Artificial Intelligence',
+  'Mental Health',
+  'Digital Payments',
+  'Climate Change',
+  'Online Education',
+  'Cybersecurity',
+] as const;
 
 export const RecommendationResults: React.FC<RecommendationResultsProps> = ({
   query,
@@ -21,27 +31,74 @@ export const RecommendationResults: React.FC<RecommendationResultsProps> = ({
   savedPaperIds,
   onToggleSave,
   onNewSearch,
-  recommendationMode,
-  onChangeMode,
 }) => {
   const [searchInput, setSearchInput] = useState(query);
-  const [sortOption, setSortOption] = useState<SortOption>('relevance');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('All Disciplines');
+  const [selectedYear, setSelectedYear] = useState<string>('latest');
 
-  // Extract categories for filter
-  const categories = ['all', ...Array.from(new Set(papers.map((p) => p.primaryCategory)))];
+  // Compute available recent years from dataset and recent calendar years
+  const availableYears = useMemo(() => {
+    const paperYears = papers.map((p) => p.publicationYear).filter(Boolean);
+    const standardRecentYears = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
+    const allYears = Array.from(new Set([...paperYears, ...standardRecentYears]))
+      .filter((y) => typeof y === 'number' && y >= 2018)
+      .sort((a, b) => b - a);
+    return allYears;
+  }, [papers]);
+
+  // Sync input and selectedCategory when query prop changes
+  useEffect(() => {
+    setSearchInput(query);
+    const matched = RESEARCH_DOMAINS.find((d) => d.toLowerCase() === query.toLowerCase());
+    if (matched) {
+      setSelectedCategory(matched);
+    } else if (query.trim() === '' || query === 'research') {
+      setSelectedCategory('All Disciplines');
+    }
+  }, [query]);
+
+  // When domain filter changes, recommend relevant research papers for that domain
+  const handleDomainChange = (domain: string) => {
+    setSelectedCategory(domain);
+    if (domain === 'All Disciplines') {
+      onNewSearch('research');
+    } else {
+      setSearchInput(domain);
+      onNewSearch(domain);
+    }
+  };
 
   // Filter & Sort
   const filteredPapers = papers.filter((p) => {
-    if (selectedCategory === 'all') return true;
-    return p.primaryCategory === selectedCategory;
+    // 1. Domain filter
+    if (selectedCategory !== 'All Disciplines' && selectedCategory !== 'all') {
+      const target = selectedCategory.toLowerCase();
+      const cat = (p.primaryCategory || '').toLowerCase();
+      const topics = (p.topics || []).map((t) => t.toLowerCase()).join(' ');
+      const title = (p.title || '').toLowerCase();
+      if (!cat.includes(target) && !topics.includes(target) && !title.includes(target)) {
+        return false;
+      }
+    }
+
+    // 2. Year filter: if a specific year is chosen (not 'latest')
+    if (selectedYear !== 'latest') {
+      const targetYear = parseInt(selectedYear, 10);
+      if (!isNaN(targetYear) && p.publicationYear !== targetYear) {
+        return false;
+      }
+    }
+
+    return true;
   });
 
   const sortedPapers = [...filteredPapers].sort((a, b) => {
-    if (sortOption === 'relevance') return b.similarityScore - a.similarityScore;
-    if (sortOption === 'year') return b.publicationYear - a.publicationYear;
-    if (sortOption === 'citations') return b.citationCount - a.citationCount;
-    return 0;
+    if (selectedYear === 'latest') {
+      if (b.publicationYear !== a.publicationYear) {
+        return b.publicationYear - a.publicationYear;
+      }
+    }
+    return b.similarityScore - a.similarityScore;
   });
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -97,83 +154,42 @@ export const RecommendationResults: React.FC<RecommendationResultsProps> = ({
           </form>
         </div>
 
-        {/* Control Bar: Recommendation Mode & Sort Options (Zero-Pill: Clean Segmented Controls) */}
+        {/* Control Bar: Domain & Year Filter Controls */}
         <div className="mt-8 pt-6 border-t border-[#122b1e]/10 flex flex-wrap items-center justify-between gap-4">
           
-          {/* Mode Selector */}
-          <div className="flex items-center gap-1 p-1 bg-[#e2ebe0]/70 rounded-lg text-xs font-medium">
-            <span className="px-2.5 py-1 text-[#122b1e]/50 font-editorial-mono text-[11px] uppercase tracking-wider">
-              Mode:
-            </span>
-            <button
-              onClick={() => onChangeMode('hybrid')}
-              className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
-                recommendationMode === 'hybrid'
-                  ? 'bg-white text-[#122b1e] font-semibold shadow-xs'
-                  : 'text-[#122b1e]/70 hover:text-[#122b1e]'
-              }`}
+          {/* Domain Filter */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-[#122b1e]/50 font-editorial-mono uppercase text-[11px]">Domain:</span>
+            <select
+              value={selectedCategory}
+              onChange={(e) => handleDomainChange(e.target.value)}
+              className="bg-transparent border-b border-[#122b1e]/30 text-[#122b1e] font-semibold py-1 px-1 focus:outline-none cursor-pointer"
             >
-              Hybrid (Recommended)
-            </button>
-            <button
-              onClick={() => onChangeMode('content')}
-              className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
-                recommendationMode === 'content'
-                  ? 'bg-white text-[#122b1e] font-semibold shadow-xs'
-                  : 'text-[#122b1e]/70 hover:text-[#122b1e]'
-              }`}
-            >
-              Content Similarity
-            </button>
-            <button
-              onClick={() => onChangeMode('collaborative')}
-              className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
-                recommendationMode === 'collaborative'
-                  ? 'bg-white text-[#122b1e] font-semibold shadow-xs'
-                  : 'text-[#122b1e]/70 hover:text-[#122b1e]'
-              }`}
-            >
-              Reader Citations
-            </button>
+              {RESEARCH_DOMAINS.map((domain) => (
+                <option key={domain} value={domain} className="bg-[#edf2ec] text-[#122b1e]">
+                  {domain}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Sort & Category Controls */}
-          <div className="flex flex-wrap items-center gap-4 text-xs">
-            {categories.length > 2 && (
-              <div className="flex items-center gap-2">
-                <span className="text-[#122b1e]/50 font-editorial-mono uppercase text-[11px]">Category:</span>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="bg-transparent border-b border-[#122b1e]/30 text-[#122b1e] font-medium py-1 px-1 focus:outline-none cursor-pointer"
-                >
-                  {categories.map((c) => (
-                    <option key={c} value={c} className="bg-[#edf2ec] text-[#122b1e]">
-                      {c === 'all' ? 'All Disciplines' : c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2">
-              <span className="text-[#122b1e]/50 font-editorial-mono uppercase text-[11px]">Sort By:</span>
-              <div className="flex items-center gap-1">
-                {(['relevance', 'year', 'citations'] as SortOption[]).map((opt) => (
-                  <button
-                    key={opt}
-                    onClick={() => setSortOption(opt)}
-                    className={`px-2 py-1 rounded transition-colors cursor-pointer capitalize font-medium ${
-                      sortOption === opt
-                        ? 'text-[#122b1e] font-bold underline underline-offset-4'
-                        : 'text-[#122b1e]/60 hover:text-[#122b1e]'
-                    }`}
-                  >
-                    {opt === 'relevance' ? 'Match' : opt}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* Year Filter: Dropdown of recent years with 'Latest' option */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-[#122b1e]/50 font-editorial-mono uppercase text-[11px]">Year:</span>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="bg-transparent border-b border-[#122b1e]/30 text-[#122b1e] font-semibold py-1 px-1 focus:outline-none cursor-pointer"
+            >
+              <option value="latest" className="bg-[#edf2ec] text-[#122b1e]">
+                Latest
+              </option>
+              {availableYears.map((yr) => (
+                <option key={yr} value={String(yr)} className="bg-[#edf2ec] text-[#122b1e]">
+                  {yr}
+                </option>
+              ))}
+            </select>
           </div>
 
         </div>
